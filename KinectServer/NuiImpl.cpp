@@ -14,6 +14,7 @@
 #include <strsafe.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "msgpack.hpp"
 
 //lookups for color tinting based on player index
 static const int g_IntensityShiftByPlayerR[] = { 1, 2, 0, 2, 0, 0, 2, 0 };
@@ -141,15 +142,6 @@ void CALLBACK CSkeletalViewerApp::Nui_StatusProc( HRESULT hrStatus, const OLECHA
 /// <returns>S_OK if successful, otherwise an error code</returns>
 HRESULT CSkeletalViewerApp::Nui_Init( OLECHAR *instanceName )
 {
-	if (AllocConsole())
-	{
-		freopen("CONOUT$", "w", stdout);
-		printf("KinectServerUDP MissingLink inc.\n");
-	}
-	else
-	{
-		MessageBox(NULL,L"Failed to init a console.\n",L"",0);
-	}
 
     // Generic creation failure
     if ( NULL == instanceName )
@@ -180,14 +172,6 @@ HRESULT CSkeletalViewerApp::Nui_Init( OLECHAR *instanceName )
 /// <returns>S_OK if successful, otherwise an error code</returns>
 HRESULT CSkeletalViewerApp::Nui_Init( )
 {
-	if (AllocConsole())
-	{
-		freopen("CONOUT$", "w", stdout);
-		printf("KinectServerUDP MissingLink inc.\n");	}
-	else
-	{
-		MessageBox(NULL,L"Failed to init a console.\n",L"",0);
-	}
 
     HRESULT  hr;
     bool     result;
@@ -609,15 +593,35 @@ void CSkeletalViewerApp::Nui_DrawBone( const NUI_SKELETON_DATA & skel, NUI_SKELE
 /// <param name="skel">skeleton to draw</param>
 /// <param name="windowWidth">width (in pixels) of output buffer</param>
 /// <param name="windowHeight">height (in pixels) of output buffer</param>
-void CSkeletalViewerApp::Nui_DrawSkeleton( const NUI_SKELETON_DATA & skel, int windowWidth, int windowHeight )
-{      
+void CSkeletalViewerApp::Nui_DrawSkeleton( const NUI_SKELETON_DATA & skel, int windowWidth, int windowHeight ,std::vector<std::vector<float>> *human)
+{
+	std::vector<std::vector<float>> skelpos;
+
     int i;
+
+
 
     for (i = 0; i < NUI_SKELETON_POSITION_COUNT; i++)
     {
-        m_Points[i] = SkeletonToScreen( skel.SkeletonPositions[i], windowWidth, windowHeight );
-    }
+        m_Points[i] = SkeletonToScreen( skel.SkeletonPositions[i], windowWidth, windowHeight);
 
+		std::vector<float> skelvector;
+		skelvector.push_back(skel.SkeletonPositions[i].x);
+		skelvector.push_back(skel.SkeletonPositions[i].y);
+		skelvector.push_back(skel.SkeletonPositions[i].z);
+		skelvector.push_back(skel.SkeletonPositions[i].w);
+		skelpos.push_back(skelvector);
+    }
+	*human = skelpos;
+	
+	//std::string sbuf;
+	//msgpack::pack(mbuf,skelpos);
+	
+	//printf("%d,",mbuf.size());
+
+	//udpSend(mbuf.data(),mbuf.size());
+
+/*
 	float angle;
 	printf("%04.3f %04.3f | %04.3f %04.3f\r",
 		skel.SkeletonPositions[NUI_SKELETON_POSITION_ELBOW_RIGHT].x,
@@ -647,6 +651,7 @@ void CSkeletalViewerApp::Nui_DrawSkeleton( const NUI_SKELETON_DATA & skel, int w
 	else {
 		udpSend(180);
 	}
+	*/
 
 
 	/*
@@ -921,6 +926,7 @@ bool CSkeletalViewerApp::Nui_GotSkeletonAlert( )
     GetClientRect( GetDlgItem( m_hWnd, IDC_SKELETALVIEW ), &rct);
     int width = rct.right;
     int height = rct.bottom;
+	std::vector<std::vector<std::vector<float>>> humans;
 
     for ( int i = 0 ; i < NUI_SKELETON_COUNT; i++ )
     {
@@ -928,8 +934,10 @@ bool CSkeletalViewerApp::Nui_GotSkeletonAlert( )
 
         if ( trackingState == NUI_SKELETON_TRACKED )
         {
+			std::vector<std::vector<float>> human;
             // We're tracking the skeleton, draw it
-            Nui_DrawSkeleton( SkeletonFrame.SkeletonData[i], width, height );
+            Nui_DrawSkeleton( SkeletonFrame.SkeletonData[i], width, height, &human);
+			humans.push_back(human);
         }
         else if ( trackingState == NUI_SKELETON_POSITION_ONLY )
         {
@@ -943,6 +951,11 @@ bool CSkeletalViewerApp::Nui_GotSkeletonAlert( )
             m_pRenderTarget->DrawEllipse(ellipse, m_pBrushJointTracked);
         }
     }
+
+	msgpack::sbuffer mbuf;
+	msgpack::pack(mbuf,humans);
+
+	udpSend(mbuf.data(),mbuf.size());
 
     hr = m_pRenderTarget->EndDraw();
 

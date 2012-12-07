@@ -82,6 +82,7 @@ EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 *                                                                 *
 ******************************************************************/
 unsigned __stdcall viewer(void *p);
+	void calcArmDegree(std::vector<std::vector<std::vector<std::vector<float>>>> &humans);
 class DemoApp
 {
 public:
@@ -91,6 +92,7 @@ public:
     HRESULT Initialize();
 
     void RunMessageLoop();
+
 
 private:
     HRESULT CreateDeviceIndependentResources();

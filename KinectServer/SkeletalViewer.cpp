@@ -389,11 +389,8 @@ int CSkeletalViewerApp::MessageBoxResource( UINT nID, UINT nType )
     return MessageBoxW(m_hWnd, szRes, m_szAppTitle, nType);
 }
 
-void CSkeletalViewerApp::udpSend(float kcode) {
-	char buf[8];
-	_itoa_s(kcode,buf,sizeof(buf),10);
-	strcat(buf,"\0");
-	sendto(sock,buf,9,0,(struct sockaddr *)&addr,sizeof(addr));
+void CSkeletalViewerApp::udpSend(const char *bin,size_t size) {
+	sendto(sock,bin,size,0,(struct sockaddr *)&addr,sizeof(addr));
 }
 
 void CSkeletalViewerApp::initSocket() {

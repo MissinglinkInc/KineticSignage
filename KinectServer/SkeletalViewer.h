@@ -11,8 +11,9 @@
 #include "resource.h"
 #include "NuiApi.h"
 #include "DrawDevice.h"
-#include "PhotoViewer.h"
+
 #include <WinSock2.h>
+#include <vector>
 
 #define SZ_APPDLG_WINDOW_CLASS          _T("SkeletalViewerAppDlgWndClass")
 #define WM_USER_UPDATE_FPS              WM_USER
@@ -83,7 +84,7 @@ public:
     /// <param name="skel">skeleton to draw</param>
     /// <param name="windowWidth">width (in pixels) of output buffer</param>
     /// <param name="windowHeight">height (in pixels) of output buffer</param>
-    void                    Nui_DrawSkeleton( const NUI_SKELETON_DATA & skel, int windowWidth, int windowHeight );
+    void                    Nui_DrawSkeleton( const NUI_SKELETON_DATA & skel, int windowWidth, int windowHeight,std::vector<std::vector<float>> *humans);
 
     /// <summary>
     /// Draws a line between two bones
@@ -135,7 +136,7 @@ public:
 
     int MessageBoxResource(UINT nID, UINT nType);
 
-void			udpSend(float);
+void			udpSend(const char *,size_t size);
 void			initSocket();
 
 SOCKET sock;

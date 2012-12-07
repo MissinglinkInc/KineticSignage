@@ -15,8 +15,15 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include "msgpack.hpp"
+#include "nuiapi.h"
+#include "NuiSensor.h"
+#include <iostream>
+#define _USE_MATH_DEFINES
+#include <math.h>
 
-int angle;
+
+float angle;
 HANDLE hFind;
 WIN32_FIND_DATA fd;
 std::vector<std::string> files;
@@ -39,6 +46,46 @@ void DemoApp::string2wchar(WCHAR *pWbuffer,std::string &str) {
 	mbstowcs_s(&ReturnValue, pWbuffer,500,str.c_str(),500);
 }
 
+void calcArmDegree(std::vector<std::vector<std::vector<float>>> &humans) {
+	std::vector<std::vector<std::vector<float>>>::iterator v_itr = humans.begin();
+	
+	for (; v_itr != humans.end(); ++v_itr) {
+		//std::cout << *(v_itr) << std::endl;
+		std::vector<std::vector<float>> w_itr = *v_itr;
+		
+		printf("%04.3f %04.3f | %04.3f %04.3f\r",
+		w_itr.at(NUI_SKELETON_POSITION_ELBOW_RIGHT).at(0),
+		w_itr.at(NUI_SKELETON_POSITION_SHOULDER_RIGHT).at(0),
+		w_itr.at(NUI_SKELETON_POSITION_ELBOW_LEFT).at(0),
+		w_itr.at(NUI_SKELETON_POSITION_SHOULDER_LEFT).at(0)
+		);
+	if (w_itr.at(NUI_SKELETON_POSITION_WRIST_RIGHT).at(1) > w_itr.at(NUI_SKELETON_POSITION_ELBOW_RIGHT).at(1)) {
+		// éËÇÃäpìx
+		angle = atan2(
+			w_itr.at(NUI_SKELETON_POSITION_WRIST_RIGHT).at(1) - w_itr.at(NUI_SKELETON_POSITION_ELBOW_RIGHT).at(1),
+			w_itr.at(NUI_SKELETON_POSITION_WRIST_RIGHT).at(0) - w_itr.at(NUI_SKELETON_POSITION_ELBOW_RIGHT).at(0)
+		);
+		printf("R:ANGL: %04.3f                  \r",angle*180/M_PI);
+		angle = angle*180/M_PI;
+	}
+	else if (w_itr.at(NUI_SKELETON_POSITION_WRIST_LEFT).at(1) > w_itr.at(NUI_SKELETON_POSITION_ELBOW_LEFT).at(1)) {
+		// éËÇÃäpìx
+		angle = atan2(
+			w_itr.at(NUI_SKELETON_POSITION_WRIST_LEFT).at(1) - w_itr.at(NUI_SKELETON_POSITION_ELBOW_LEFT).at(1),
+			w_itr.at(NUI_SKELETON_POSITION_WRIST_LEFT).at(0) - w_itr.at(NUI_SKELETON_POSITION_ELBOW_LEFT).at(0)
+		);
+
+		printf("L:ANGL: %04.3f                  \r",angle*180/M_PI+180);
+		angle = angle*180/M_PI+180;
+	}
+	else {
+		angle = 180;
+	}
+	
+	}
+
+}
+
 // udp server thread
 unsigned __stdcall server(void *p) {
 	HANDLE hEvent;
@@ -53,16 +100,18 @@ unsigned __stdcall server(void *p) {
 	struct sockaddr_in addr;
 	char text[9];
 	
-	char buf[9];
+	char buf[2048];
 	
 	if (WSAStartup(MAKEWORD(2,2), &wsaData) != 0) {
-	       printf("Failed. Error Code : %d",WSAGetLastError());
-	       exit(EXIT_FAILURE);
+	    printf("Failed. Error Code : %d",WSAGetLastError());
+		MessageBoxA(NULL,"WSAStartup() error\nWSAStartup()Ç…é∏îs","Server",MB_ICONERROR|MB_OK);
+	    exit(EXIT_FAILURE);
 	}
 	
 	if((sock = socket(AF_INET , SOCK_DGRAM , 0 )) == INVALID_SOCKET)
 	{
 	    printf("Could not create socket : %d" , WSAGetLastError());
+		MessageBoxA(NULL,"Socket socket() error\nÉ\ÉPÉbÉgÅ^socket()Ç…é∏îs","Server",MB_ICONERROR|MB_OK);
 	}
 	
 	addr.sin_family = AF_INET;
@@ -71,22 +120,24 @@ unsigned __stdcall server(void *p) {
 	
 	if( bind(sock ,(struct sockaddr *)&addr , sizeof(addr)) == SOCKET_ERROR)
 	{
-	    printf("Bind failed with error code : %d" , WSAGetLastError());
+		printf("Bind failed with error code : %d" , WSAGetLastError());
+		MessageBoxA(NULL,"Socket bind() error\nÉ\ÉPÉbÉgÅ^bind()Ç…é∏îs","Server",MB_ICONERROR|MB_OK);
 	    exit(EXIT_FAILURE);
 	}
 	
 	memset(buf, 0, sizeof(buf));
 	int res;
 	
+	std::vector<std::vector<std::vector<float>>> humans;
 	//char *eob;
 	while (1) {
 		res = recv(sock, buf, sizeof(buf), 0);
 		if (res > 0) {
-			memcpy(text,buf,res);
-			if (strchr(text,'\0')) {
-					angle = atoi(text);
-				*text = '\0';
-			}
+			msgpack::unpacked msg;
+			msgpack::unpack(&msg,buf,res);
+			msgpack::object obj = msg.get();
+			obj.convert(&humans);
+			calcArmDegree(humans);
 		}
 	}
 
@@ -140,6 +191,7 @@ std::vector<std::string> DemoApp::GetDirectories(std::string directory)
     //if ((dir = FindFirstFile((LPCWSTR)(directory + sSuffix).c_str(), &file_data)) == INVALID_HANDLE_VALUE) {
 	if ((dir = FindFirstFile((LPCWCHAR)pWbuffer, &file_data)) == INVALID_HANDLE_VALUE) {
 		printf("er:%d\n",GetLastError ());
+		MessageBoxA(NULL,"FindFirstFile() failed","GetDirectories",MB_ICONERROR|MB_OK);
     	return out; /* No files found */
 	}
 
@@ -513,7 +565,6 @@ void DemoApp::OnRender()
 	HRESULT hr = CreateDeviceResources();
 	    if (SUCCEEDED(hr))
     {
-	printf("OnRender\n");
 	if (m_pRenderTarget)
     {
 	m_pRenderTarget->BeginDraw();
@@ -558,7 +609,7 @@ void DemoApp::render(std::string filename) {
 				SafeRelease(&m_pBitmap);
 			}
 			else {
-				printf("couldnt load file\n");
+				printf("resource trouble?\n");
 			}
 	
 
